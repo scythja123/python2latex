@@ -4,5 +4,5 @@ This is a Python module that provides several functions to facilitate the inclus
 """
 __authors__ = 'Sonja Stuedli'
 __author_emails__ = 'scythja@gmail.com'
-__version__ = 0.0.3
+__version__ = '0.0.3'
 

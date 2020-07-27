@@ -18,7 +18,7 @@ setup(
     long_description_content_type='text/markdown',
     #long_description=long_description,
     author=p2l.__authors__,
-    author_email=__author_emails__,
+    author_email=p2l.__author_emails__,
     url='https://github.com/scythja123/TODO',
     license= 'GPLv3',
     packages=find_packages(where=here),
