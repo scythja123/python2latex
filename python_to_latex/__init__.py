@@ -6,3 +6,4 @@ __authors__ = 'Sonja Stuedli'
 __author_emails__ = 'scythja@gmail.com'
 __version__ = '0.0.3'
 
+import python_to_latex

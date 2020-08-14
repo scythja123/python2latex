@@ -18,7 +18,7 @@ Below there are some small examples how to use the provided functions. Detailed 
 ### Printing a matrix:
 
   ```python
-        import python_to_latex as p2l
+        import python_to_latex.python_to_latex as p2l
         import numpy as np
         mat2lat(np.eye(2),matrix_style='bmatrix')
   ```
@@ -34,7 +34,7 @@ Below there are some small examples how to use the provided functions. Detailed 
 ### Printing table output:
 
    ```python
-        import python_to_latex as p2l
+        import python_to_latex.python_to_latex as p2l
         numeric_list_to_tabularx([[1,2,3],[4,5,6]],heading=['A','B','c'])
    ```
 
@@ -52,7 +52,7 @@ Below there are some small examples how to use the provided functions. Detailed 
 
 
    ```python
-        import python_to_latex as p2l
+        import python_to_latex.python_to_latex as p2l
         import numpy as np
         import matplotlib
         import matplotlib.pyplot as plt
