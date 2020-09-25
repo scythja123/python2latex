@@ -8,6 +8,7 @@ This module gives several method to process data within python to use in latex.
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from scipy import linalg as la
 import itertools
 
@@ -120,7 +121,7 @@ def numeric_list_to_tabularx(data,heading=None,exponent=0,row_heading=None,save_
 plot_linestyles = {'-':"solid",'None':"only marks","--":'dashed',"-.":'dashdotted',":":"dotted"}
 plot_markers = {'None':'no marks','.':"mark=*",'x':'mark=x','o':'mark=o','s':'mark=square'}
 
-def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, retain_marker = True,plot_as_table=True,figure_options="grid",plot_options=None,line_options=None,add_labels=None):
+def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, retain_marker = True,plot_as_table=True,figure_options="grid",plot_options=None,line_options=None,add_labels=None,export_legend=False):
     """
     Convert a figure to a pgf plot.
 
@@ -137,6 +138,8 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
     line_options (Dict:None): give additional options that hold for this line. Set a label for the line while plotting such as <plt_2[1].plot(x,y2,label="line 1")>. Then, options can be given as dictionary having the given label as key (String) and the options as value (String)
     
    add_labels (String: None): if not None a label is printed included for each plot. This can be references as \ref{pgfplot:<add_labels><line_number>}
+
+    export_legend (Bool:False): if set true a second file is exported that will produce the legend. The name is save_name with the postfix _legend<0-99>, the legend will not be included in the figure file. If there are multiple plots the legend is exported for each plot. To use this option, the option 'legend as name=..' cannot be used in the figure or plot options.
 
     Example usage: 
     x = np.arange(15)
@@ -220,18 +223,20 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
         color_definitions = list()
         s += " REPLACE_COLORS \n"
     s += s_init
-    
+
+    s_legend = list()
     # add each subplot
     for axis in ax:
+
+        ## axis definition:
         
         s += s_start
         # todo logarithmic scale for x or y using tikz options below
         # "xmode=log|normal,ymode=log|normal"
 
-
         # set label, min, max and check whethere the ticks are symbolic for x and y axis
         s += f"    xlabel = {axis.get_xlabel()},\n"
-        if True in [i.get_xdata().dtype.num in [19] for i in axis.lines]:
+        if True in [np.array(i.get_xdata()).dtype.num in [19] for i in axis.lines]:
             symbolic_x_coordinates = [str(0)]
             s += "    xtick = data,\n    symbolic x coords = {REPLACE_SYMBOLIC_COORDS_X},\n"
             plot_as_table = False
@@ -240,7 +245,7 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
             s += f"    xmin={axis.get_xlim()[0]}, xmax={axis.get_xlim()[1]},\n"
 
         s += f"    ylabel = {axis.get_ylabel()},\n"
-        if True in [i.get_ydata().dtype.num in [19] for i in axis.lines]:
+        if True in [np.array(i.get_ydata()).dtype.num in [19] for i in axis.lines]:
             symbolic_y_coordinates = [str(0)]
             s += "    ytick = data,\n    symbolic y coords = {REPLACE_SYMBOLIC_COORDS_Y},\n"
             plot_as_table = False
@@ -255,13 +260,33 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
                 s += "    " + str(option) + "\n"
         s += "    ]\n"
 
-        # make legend_entries
+        # add a legend file
+        if export_legend:
+            s_legend.append("%This file was created by python_to_latex. \n\\begin{tikzpicture} \n")
+            if retain_color:
+                s_legend[-1] += " REPLACE_COLORS \n"
+            s_legend[-1] += "\\begin{axis}[%\n    " + str(figure_options) + ",\n"
+            if plot_options:
+                option = plot_options.get(axis.get_label(),None)
+                if option:
+                    s_legend[-1] += "    " + str(option) + "\n"
+
+            s_legend[-1] += "    hide axis,\n    legend image post style={sharp plot},\n"
+            s_legend[-1] += "    ]\n"
+
+
+        ## make legend_entries
         if axis.get_legend():
             legend_labels = [i.get_text() for i in axis.get_legend().texts]
-            s+= "\legend{" + ','.join(legend_labels) + "}\n"
+            if export_legend:
+                s_legend[-1] += "\legend{" + ','.join(legend_labels) + "}\n"
+                s += "%\legend{" + ','.join(legend_labels) + "}\n"
+            else:
+                s += "\legend{" + ','.join(legend_labels) + "}\n"
 
-        # add line plots
+        # add line plots.
         for line_number,line in enumerate(axis.lines):
+               
             s += "\\addplot +["
             # add necessary options
             if retain_linestyle:
@@ -269,7 +294,10 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
                 if linestyle:
                     s += f"{linestyle},"
             if retain_color:
-                color_definitions.append("\definecolor{color"+str(len(color_definitions))+"}{RGB}{"+" , ".join([str(int(line.get_color().lstrip('#')[i:i+2], 16)) for i in (0, 2, 4)])+"} ")
+                color_hex = line.get_color()
+                if not color_hex.startswith('#'):
+                    color_hex = colors.cnames[color_hex]
+                color_definitions.append("\definecolor{color"+str(len(color_definitions))+"}{RGB}{"+" , ".join([str(int(color_hex.lstrip('#')[i:i+2], 16)) for i in (0, 2, 4)])+"} ")
                 s += f"color{str(len(color_definitions)-1)},"
             if retain_marker:
                 markers = plot_markers.get(line.get_marker(),None)
@@ -280,17 +308,47 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
                 s += str(line_options.get(line.get_label(),'')) 
             s += "]\n"
 
-            if plot_as_table :
-                s+= " table{%\n" +"\n".join([f"  {x} {y}" for (x,y) in zip(line.get_xdata(),line.get_ydata())]) + "\n};\n"
+            if len(line.get_xdata())==2 and line.get_xdata()[0] == 0 and line.get_xdata()[1] == 1 and line.get_ydata()[0] == line.get_ydata()[1]:
+                # This is a horizontal line
+                s += "coordinates{" + f"({axis.get_xlim()[0]},{line.get_ydata()[0]}) \n ({axis.get_xlim()[1]},{line.get_ydata()[1]})" + "};\n"
+            elif len(line.get_ydata())==2 and line.get_ydata()[0] == 0 and line.get_ydata()[1] == 1 and line.get_xdata()[0] == line.get_xdata()[1]:
+                # This is a vertical line
+                s += "coordinates{" + f"({line.get_xdata()[0]},{axis.get_ylim()[0]}) \n ({line.get_xdata()[1]},{axis.get_ylim()[1]})" + "};\n"
             else:
-                if symbolic_x_coordinates:
-                    [symbolic_x_coordinates.append(str(label)) for label in line.get_xdata() if label not in symbolic_x_coordinates]
-                if symbolic_y_coordinates:
-                    [symbolic_y_coordinates.append(str(label)) for label in line.get_ydata() if label not in symbolic_y_coordinates]
-                s+= " coordinates{%\n" +"\n".join([f"  ({x},{y})" for (x,y) in zip(line.get_xdata(),line.get_ydata())]) + "\n};\n"
+                # This is any other line
+                if plot_as_table :
+                    s+= " table{%\n" +"\n".join([f"  {x} {y}" for (x,y) in zip(line.get_xdata(),line.get_ydata())]) + "\n};\n"
+                else:
+                    if symbolic_x_coordinates:
+                        [symbolic_x_coordinates.append(str(label)) for label in line.get_xdata() if label not in symbolic_x_coordinates]
+                    if symbolic_y_coordinates:
+                        [symbolic_y_coordinates.append(str(label)) for label in line.get_ydata() if label not in symbolic_y_coordinates]
+                    s+= " coordinates{%\n" +"\n".join([f"  ({x},{y})" for (x,y) in zip(line.get_xdata(),line.get_ydata())]) + "\n};\n"
 
             if add_labels:
                   s += f"\label{{pgfplot:{add_labels}{line_number}}}"
+
+            if export_legend:
+                s_legend[-1] += "\\addplot +["
+                if retain_linestyle:
+                    linestyle = plot_linestyles.get(line.get_linestyle(),None)
+                    if linestyle:
+                        s_legend[-1] += f"{linestyle},"
+                if retain_color:
+                    s_legend[-1] += f"color{str(len(color_definitions)-1)},"
+                if retain_marker:
+                    markers = plot_markers.get(line.get_marker(),None)
+                    if markers:
+                        s_legend[-1] += f"{markers},"
+                if line_options:
+                    s_legend[-1] += str(line_options.get(line.get_label(),''))
+                s_legend[-1] += "]"
+                s_legend[-1] += "coordinates {(0,0)};\n"
+
+        if export_legend:
+            if retain_color:
+                s_legend[-1] = s_legend[-1].replace("REPLACE_COLORS","\n ".join(color_definitions)) + "\n"
+            s_legend[-1] += "\end{axis}\n\end{tikzpicture} \n"
 
     if retain_color:
         s=s.replace("REPLACE_COLORS","\n ".join(color_definitions)) + "\n"
@@ -308,8 +366,19 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
         file_name = str(save_name)
         if (file_name.endswith('.tikz')) or (file_name.endswith('.pgf')) or (file_name.endswith('.tex')):
             f = open(file_name,'w')
+            if export_legend:
+                for idx,legend_string in enumerate(s_legend):
+                    f_name = file_name.replace('.',"_legend"+str(idx)+'.')
+                    f_legend = open(f_name,'w')
+                    f_legend.write(legend_string)
+                    f_legend.close()              
         else:
             f = open(file_name +'.tikz','w')
+            if export_legend:
+                for idx,legend_string in enumerate(s_legend):
+                    f_legend = open(file_name+"_legend"+str(idx)+'.tikz','w')
+                    f_legend.write(legend_string)
+                    f_legend.close()
         f.write(s)
         f.close()
     else:
