@@ -271,7 +271,7 @@ def fig2pgf(fig,save_name=None,retain_color = False, retain_linestyle = False, r
                 if option:
                     s_legend[-1] += "    " + str(option) + "\n"
 
-            s_legend[-1] += "    hide axis,\n    legend image post style={sharp plot},\n"
+            s_legend[-1] += "    hide axis,\n    legend image post style={sharp plot},\n    width=0.11cm,\n    height=0.1cm,\n"
             s_legend[-1] += "    ]\n"
 
 
