@@ -41,11 +41,11 @@ def mat2lat(matrix, matrix_style="ownmatrix", save_name=None, style=dict()):
             or (file_name.endswith(".tab"))
             or (file_name.endswith(".tex"))
         ):
-            f = open(file_name, "w")
+            with open(file_name, "w") as f:
+                f.write(s)
         else:
-            f = open(file_name + ".tab", "w")
-        f.write(s)
-        f.close()
+            with open(file_name + ".tab", "w") as f:
+                f.write(s)
     else:
         print(s)
     return s
@@ -141,11 +141,11 @@ def numeric_list_to_tabularx(
             or (file_name.endswith(".tab"))
             or (file_name.endswith(".tex"))
         ):
-            f = open(file_name, "w")
+            with open(file_name, "w") as f:
+                f.write(s)
         else:
-            f = open(file_name + ".tab", "w")
-        f.write(s)
-        f.close()
+            with open(file_name + ".tab", "w") as f:
+                f.write(s)
     else:
         print(s)
     return s
@@ -498,24 +498,23 @@ def fig2pgf(
             or (file_name.endswith(".pgf"))
             or (file_name.endswith(".tex"))
         ):
-            f = open(file_name, "w")
-            if export_legend:
-                for idx, legend_string in enumerate(s_legend):
-                    f_name = file_name.replace(".", "_legend" + str(idx) + ".")
-                    f_legend = open(f_name, "w")
-                    f_legend.write(legend_string)
-                    f_legend.close()
+            with open(file_name, "w") as f:
+                if export_legend:
+                    for idx, legend_string in enumerate(s_legend):
+                        f_name = file_name.replace(".", "_legend" + str(idx) + ".")
+                        with open(f_name,"w") as f_legend:
+                            f_legend.write(legend_string)
+                f.write(s)
         else:
-            f = open(file_name + ".tikz", "w")
-            if export_legend:
-                for idx, legend_string in enumerate(s_legend):
-                    f_legend = open(file_name + "_legend" + str(idx) + ".tikz", "w")
-                    f_legend.write(legend_string)
-                    f_legend.close()
-        f.write(s)
-        f.close()
+            with open(file_name + ".tikz", "w") as f:
+                if export_legend:
+                    for idx, legend_string in enumerate(s_legend):
+                        with open(file_name + "_legend" + str(idx) + ".tikz", "w") as f_legend:
+                            f_legend.write(legend_string)
+                f.write(s)
     else:
         print(s)
+
     return s
 
 
@@ -541,70 +540,69 @@ def pgf2plotdata(file_name,ext='tikz'):
     
     """
     if file_name.endswith(f".{ext}"):
-        pgf_file=open(file_name)
+        full_file_name=file_name
     else:
-        pgf_file=open(f"{file_name}.{ext}")
-        
-    plots = list()
-    plot = None
-    curve = None
-    legends = list()
-    legend = None
+        full_file_name=f"{file_name}.{ext}"
 
-    for line in pgf_file:
+    with open(full_file_name) as pgf_file:
+        plots = list()
+        plot = None
+        curve = None
+        legends = list()
+        legend = None
 
-        line = line.strip()
+        for line in pgf_file:
 
-        if line == "":
-            continue
+            line = line.strip()
 
-        if line.startswith("\\begin{axis}") or line.startswith("\\nextgroupplot"):
-            if plot:
-                plot.append(curve)
-                plots.append(plot)
-                legends.append(legend)
-            curve = None
-            legend = list()
-            plot = list()
+            if line == "":
+                continue
 
-        #elif line.startswith("\\legend"): # has to be implemented
-            
-            
-        elif line.startswith("\\addplot"):
-            if curve:
-                plot.append(curve)
-            curve = list()
+            if line.startswith("\\begin{axis}") or line.startswith("\\nextgroupplot"):
+                if plot:
+                    plot.append(curve)
+                    plots.append(plot)
+                    legends.append(legend)
+                curve = None
+                legend = list()
+                plot = list()
 
-        elif line.startswith("\\addlegendentry"):
-            legend.append(line.lstrip("\\addlegendentry{").rstrip("}\n"))
+            #elif line.startswith("\\legend"): # has to be implemented
 
-        elif line[0].isdigit():
-            for idx,value in enumerate(line.split()):
-                if len(curve)<idx+1:
-                    curve.append(list())
-                number = value.lstrip("(").rstrip(")")
-                if number.endswith("+0j"):
-                    number = number[:-3]
-                if "." in number:
-                    curve[idx].append(float(number))
-                else:
-                    curve[idx].append(int(number))
 
-        elif line[0].startswith("("):
-            for idx,value in enumerate(line.lstrip("(").rstrip(")").split(',')):
-                if len(curve)<idx+1:
-                    curve.append(list())
-                number = value.lstrip("(").rstrip(")").rstrip("+0j")
-                if "." in number:
-                    curve[idx].append(float(number))
-                else:
-                    curve[idx].append(int(number))
+            elif line.startswith("\\addplot"):
+                if curve:
+                    plot.append(curve)
+                curve = list()
 
-    plot.append(curve)
-    plots.append(plot)
+            elif line.startswith("\\addlegendentry"):
+                legend.append(line.lstrip("\\addlegendentry{").rstrip("}\n"))
 
-    legends.append(legend)
+            elif line[0].isdigit():
+                for idx,value in enumerate(line.split()):
+                    if len(curve)<idx+1:
+                        curve.append(list())
+                    number = value.lstrip("(").rstrip(")")
+                    if number.endswith("+0j"):
+                        number = number[:-3]
+                    if "." in number:
+                        curve[idx].append(float(number))
+                    else:
+                        curve[idx].append(int(number))
 
-    pgf_file.close()
+            elif line[0].startswith("("):
+                for idx,value in enumerate(line.lstrip("(").rstrip(")").split(',')):
+                    if len(curve)<idx+1:
+                        curve.append(list())
+                    number = value.lstrip("(").rstrip(")").rstrip("+0j")
+                    if "." in number:
+                        curve[idx].append(float(number))
+                    else:
+                        curve[idx].append(int(number))
+
+        plot.append(curve)
+        plots.append(plot)
+
+        legends.append(legend)
 
     return plots,legends
