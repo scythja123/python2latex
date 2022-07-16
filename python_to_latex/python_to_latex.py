@@ -197,7 +197,7 @@ def fig2pgf(
 
     add_labels (String: None): if not None a label is printed included for each plot. This can be references as \ref{pgfplot:<add_labels><line_number>}
 
-     export_legend (Bool:False): if set true a second file is exported that will produce the legend. The name is save_name with the postfix _legend<0-99>, the legend will not be included in the figure file. If there are multiple plots the legend is exported for each plot. To use this option, the option 'legend as name=..' cannot be used in the figure or plot options.
+     export_legend (Bool:False): if set true a second file is exported that will produce the legend. The name is save_name with the postfix _legend<0-99>, the legend will not be included in the figure file. If there are multiple plots the legend is exported for each plot. To use this option, the option 'legend as name=..' cannot be used in the figure or plot options. When including the figure in LaTex some white space above the legend might be visible. To reduce this  whitespace \vspace{-xcm} can be used.
 
      Example usage:
      x = np.arange(15)
@@ -341,7 +341,7 @@ def fig2pgf(
 
             s_legend[
                 -1
-            ] += "    hide axis,\n    legend image post style={sharp plot},\n    width=0.11cm,\n    height=0.1cm,\n"
+            ] += "    hide axis,\n    legend image post style={sharp plot},\n    legend pos = south west,\n"#     width=0.11cm,\n    height=0.1cm,\n
             s_legend[-1] += "    ]\n"
 
         ## make legend_entries
@@ -477,6 +477,7 @@ def fig2pgf(
                     )
                     + "\n"
                 )
+            s_legend[-1] += "\\addplot [only marks,color=white,mark size=5pt,mark options={solid,draw=white,fill=white}]coordinates {(0,0)};\n"
             s_legend[-1] += "\end{axis}\n\end{tikzpicture} \n"
 
     if retain_color:
@@ -516,3 +517,94 @@ def fig2pgf(
     else:
         print(s)
     return s
+
+
+def pgf2plotdata(file_name,ext='tikz'):
+
+    """
+    Extract the plot data from a pgf plot obtained by fig2pgf.
+
+    Parameters
+    ----------
+    filename (String): The file name of the pgfplot. 
+    ext (String: 'tikz'): a alternative file extension can be used
+
+    Return
+    ------
+    list: containing the plot data. 
+
+    example usage:
+
+    plot_data = pgf2plotdata("test") 
+    
+    
+    
+    """
+    if file_name.endswith(f".{ext}"):
+        pgf_file=open(file_name)
+    else:
+        pgf_file=open(f"{file_name}.{ext}")
+        
+    plots = list()
+    plot = None
+    curve = None
+    legends = list()
+    legend = None
+
+    for line in pgf_file:
+
+        line = line.strip()
+
+        if line == "":
+            continue
+
+        if line.startswith("\\begin{axis}") or line.startswith("\\nextgroupplot"):
+            if plot:
+                plot.append(curve)
+                plots.append(plot)
+                legends.append(legend)
+            curve = None
+            legend = list()
+            plot = list()
+
+        #elif line.startswith("\\legend"): # has to be implemented
+            
+            
+        elif line.startswith("\\addplot"):
+            if curve:
+                plot.append(curve)
+            curve = list()
+
+        elif line.startswith("\\addlegendentry"):
+            legend.append(line.lstrip("\\addlegendentry{").rstrip("}\n"))
+
+        elif line[0].isdigit():
+            for idx,value in enumerate(line.split()):
+                if len(curve)<idx+1:
+                    curve.append(list())
+                number = value.lstrip("(").rstrip(")")
+                if number.endswith("+0j"):
+                    number = number[:-3]
+                if "." in number:
+                    curve[idx].append(float(number))
+                else:
+                    curve[idx].append(int(number))
+
+        elif line[0].startswith("("):
+            for idx,value in enumerate(line.lstrip("(").rstrip(")").split(',')):
+                if len(curve)<idx+1:
+                    curve.append(list())
+                number = value.lstrip("(").rstrip(")").rstrip("+0j")
+                if "." in number:
+                    curve[idx].append(float(number))
+                else:
+                    curve[idx].append(int(number))
+
+    plot.append(curve)
+    plots.append(plot)
+
+    legends.append(legend)
+
+    pgf_file.close()
+
+    return plots,legends
