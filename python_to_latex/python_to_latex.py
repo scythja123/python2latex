@@ -6,13 +6,14 @@ This module gives several method to process data within python to use in latex.
 """
 
 import numpy as np
+import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from scipy import linalg as la
 
 
-def mat2lat(matrix, matrix_style="ownmatrix", save_name=None, style=dict()):
+def mat2lat(matrix,*, matrix_style="ownmatrix", save_name=None, style=dict()):
     """
     Takes a vector or two dimensional array into a string that produces a latex matrix or vector for printing.
 
@@ -52,7 +53,7 @@ def mat2lat(matrix, matrix_style="ownmatrix", save_name=None, style=dict()):
 
 
 def numeric_list_to_tabularx(
-    data, heading=None, exponent=0, row_heading=None, save_name=None
+        data, *, heading=None, exponent=0, row_heading=None, save_name=None
 ):
     """
     Transforms two dimensional array into a string that produces a latex tabularx using siunitx for printing.
@@ -169,7 +170,7 @@ plot_markers = {
 
 def fig2pgf(
     fig,
-    save_name=None,
+    save_name=None,*,
     retain_color=False,
     retain_linestyle=False,
     retain_marker=True,
@@ -179,6 +180,7 @@ def fig2pgf(
     line_options=None,
     add_labels=None,
     export_legend=False,
+    date_format = '%Y-%m-%d %H:%M:%S.%s',
 ):
     """
      Convert a figure to a pgf plot.
@@ -302,12 +304,22 @@ def fig2pgf(
 
         # set label, min, max and check whethere the ticks are symbolic for x and y axis
         s += f"    xlabel = {axis.get_xlabel()},\n"
-        if True in [np.array(i.get_xdata()).dtype.num in [19] for i in axis.lines]:
+        if True in [np.array(i.get_xdata()).dtype.kind in ['S','U'] for i in axis.lines]:
             symbolic_x_coordinates = [str(0)]
+            date_x_coordinates = False
             s += "    xtick = data,\n    symbolic x coords = {REPLACE_SYMBOLIC_COORDS_X},\n"
             plot_as_table = False
+        elif True in [np.array(i.get_xdata()).dtype.kind in ['M'] for i in axis.lines]:
+            symbolic_x_coordinates = None
+            date_x_coordinates = True
+            s += "    date coordinates in = x,\n    xticklabel=\day.\month.\year\ \hour:\minute \second,\n    xticklabel style={rotate=45,anchor=east,},\n"
+            min_x = min([min(i) for i in [i.get_xdata() for i in axis.lines if np.array(i.get_xdata()).dtype.kind in ['M']]])
+            max_x = max([max(i) for i in [i.get_xdata() for i in axis.lines if np.array(i.get_xdata()).dtype.kind in ['M']]])
+
+            s += f"    xmin={pd.to_datetime(min_x).strftime(date_format)}, xmax={pd.to_datetime(max_x).strftime(date_format)},\n"
         else:
             symbolic_x_coordinates = None
+            date_x_coordinates = False
             s += f"    xmin={axis.get_xlim()[0]}, xmax={axis.get_xlim()[1]},\n"
 
         s += f"    ylabel = {axis.get_ylabel()},\n"
@@ -365,7 +377,7 @@ def fig2pgf(
             if retain_color:
                 color_hex = line.get_color()
                 if not color_hex.startswith("#"):
-                    color_hex = colors.cnames[color_hex]
+                    color_hex = colors.to_hex(color_hex)
                 color_definitions.append(
                     "\definecolor{color"
                     + str(len(color_definitions))
@@ -415,16 +427,28 @@ def fig2pgf(
             else:
                 # This is any other line
                 if plot_as_table:
-                    s += (
-                        " table{%\n"
-                        + "\n".join(
-                            [
-                                f"  {x} {y}"
-                                for (x, y) in zip(line.get_xdata(), line.get_ydata())
-                            ]
+                    if date_x_coordinates:
+                        s += (
+                            " table{%\n"
+                            + "\n".join(
+                                [
+                                    f"  {pd.to_datetime(x).strftime(date_format)} {y}"
+                                    for (x, y) in zip(line.get_xdata(), line.get_ydata())
+                                ]
+                            )
+                            + "\n};\n"
                         )
-                        + "\n};\n"
-                    )
+                    else:
+                        s += (
+                            " table{%\n"
+                            + "\n".join(
+                                [
+                                    f"  {x} {y}"
+                                    for (x, y) in zip(line.get_xdata(), line.get_ydata())
+                                ]
+                            )
+                            + "\n};\n"
+                        )
                 else:
                     if symbolic_x_coordinates:
                         [
@@ -438,16 +462,28 @@ def fig2pgf(
                             for label in line.get_ydata()
                             if label not in symbolic_y_coordinates
                         ]
-                    s += (
-                        " coordinates{%\n"
-                        + "\n".join(
-                            [
-                                f"  ({x},{y})"
-                                for (x, y) in zip(line.get_xdata(), line.get_ydata())
-                            ]
+                    if date_x_coordinates:
+                        s += (
+                            " coordinates{%\n"
+                            + "\n".join(
+                                [
+                                    f"  ({pd.to_datetime(x).strftime(date_format)},{y})"
+                                    for (x, y) in zip(line.get_xdata(), line.get_ydata())
+                                ]
+                            )
+                            + "\n};\n"
                         )
-                        + "\n};\n"
-                    )
+                    else:
+                        s += (
+                            " coordinates{%\n"
+                            + "\n".join(
+                                [
+                                    f"  ({x},{y})"
+                                    for (x, y) in zip(line.get_xdata(), line.get_ydata())
+                                ]
+                            )
+                            + "\n};\n"
+                        )
 
             if add_labels:
                 s += f"\label{{pgfplot:{add_labels}{line_number}}}"
